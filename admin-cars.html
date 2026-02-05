@@ -125,7 +125,7 @@ textarea{resize:none;height:90px}
  <!-- ADD / EDIT -->
  <div class="form">
   <h3 id="formTitle">➕ إضافة سيارة</h3>
-  <input type="file" id="img" accept="image/*">
+  <input id="img" placeholder="رابط الصورة (URL)">
   <input id="name" placeholder="اسم السيارة">
   <input id="price" placeholder="السعر">
   <textarea id="desc" placeholder="الوصف"></textarea>
@@ -137,116 +137,108 @@ textarea{resize:none;height:90px}
 
 </div>
 
-<script>
-/* حماية الأدمن */
+<!-- SUPABASE -->
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+/* 🔑 بياناتك */
+const SUPABASE_URL = "https://fquwikhishikbysnzqfd.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5MYNJ7ek_LaarRhPDBNODg_Yz-4qthG";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* حماية */
 const session = JSON.parse(localStorage.getItem("session"));
-if(!session || session.role !== "admin"){
+if(!session || !session.role.startsWith("admin")){
  location.href="index.html";
 }
 
-/* بيانات */
-let cars = JSON.parse(localStorage.getItem("cars") || "[]");
-let editIndex = null;
-
+/* عناصر */
 const box = document.getElementById("cars");
+let editId = null;
 
 /* عرض السيارات */
-function render(){
+async function render(){
+ const { data:cars } = await supabase
+  .from("cars")
+  .select("*")
+  .order("created_at",{ascending:false});
+
  box.innerHTML="";
- if(!cars.length){
+ if(!cars || !cars.length){
   box.innerHTML="<p style='opacity:.6'>🚗 لا توجد سيارات</p>";
   return;
  }
 
- cars.forEach((c,i)=>{
+ cars.forEach(c=>{
   box.innerHTML+=`
    <div class="card">
     <img src="${c.img}">
     <div class="info">
      <h4>${c.name}</h4>
-     <p>${c.desc}</p>
+     <p>${c.desc||""}</p>
      <div class="price">${c.price}</div>
      <div class="actions">
-      <button class="edit" onclick="editCar(${i})">تعديل</button>
-      <button class="delete" onclick="deleteCar(${i})">حذف</button>
+      <button class="edit" onclick="editCar(${c.id})">تعديل</button>
+      <button class="delete" onclick="deleteCar(${c.id})">حذف</button>
      </div>
     </div>
-   </div>
-  `;
+   </div>`;
  });
 }
 
 /* حفظ */
-function saveCar(){
+window.saveCar = async function(){
  const name = document.getElementById("name").value.trim();
  const price = document.getElementById("price").value.trim();
  const desc = document.getElementById("desc").value.trim();
- const imgInput = document.getElementById("img");
+ const img = document.getElementById("img").value.trim();
 
- if(!name || !price || !desc){
+ if(!name || !price || !desc || !img){
   alert("أكمل جميع الحقول");
   return;
  }
 
- if(editIndex === null && !imgInput.files[0]){
-  alert("اختر صورة");
-  return;
- }
-
- if(editIndex !== null){
-  cars[editIndex].name = name;
-  cars[editIndex].price = price;
-  cars[editIndex].desc = desc;
-
-  if(imgInput.files[0]){
-   const r = new FileReader();
-   r.onload = ()=>{
-    cars[editIndex].img = r.result;
-    finishSave();
-   };
-   r.readAsDataURL(imgInput.files[0]);
-   return;
-  }
-
-  finishSave();
+ if(editId){
+  await supabase.from("cars").update({
+   name,price,desc,img
+  }).eq("id",editId);
  }else{
-  const r = new FileReader();
-  r.onload = ()=>{
-   cars.push({img:r.result,name,price,desc});
-   finishSave();
-  };
-  r.readAsDataURL(imgInput.files[0]);
+  await supabase.from("cars").insert({
+   name,price,desc,img
+  });
  }
-}
 
-function finishSave(){
- localStorage.setItem("cars",JSON.stringify(cars));
  resetForm();
  render();
 }
 
 /* تعديل */
-function editCar(i){
- const c = cars[i];
- editIndex = i;
+window.editCar = async function(id){
+ const { data:c } = await supabase
+  .from("cars")
+  .select("*")
+  .eq("id",id)
+  .single();
+
+ editId = id;
  formTitle.innerText="✏️ تعديل سيارة";
- name.value = c.name;
- price.value = c.price;
- desc.value = c.desc;
+ name.value=c.name;
+ price.value=c.price;
+ desc.value=c.desc;
+ img.value=c.img;
  window.scrollTo({top:0,behavior:"smooth"});
 }
 
 /* حذف */
-function deleteCar(i){
+window.deleteCar = async function(id){
  if(!confirm("حذف السيارة؟")) return;
- cars.splice(i,1);
- localStorage.setItem("cars",JSON.stringify(cars));
+ await supabase.from("cars").delete().eq("id",id);
  render();
 }
 
 /* إعادة ضبط */
 function resetForm(){
- editIndex = null;
+ editId=null;
  formTitle.innerText="➕ إضافة سيارة";
  name.value="";
  price.value="";
@@ -266,4 +258,4 @@ render();
 </script>
 
 </body>
-</html>
+ </html>
