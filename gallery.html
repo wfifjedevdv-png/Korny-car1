@@ -94,43 +94,38 @@ header h2{margin:0}
 
 <div class="container" id="list"></div>
 
-<script>
-/* حماية الصفحة */
-if(!localStorage.getItem("session")){
+<!-- SUPABASE -->
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+/* 🔑 بياناتك */
+const SUPABASE_URL = "https://fquwikhishikbysnzqfd.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5MYNJ7ek_LaarRhPDBNODg_Yz-4qthG";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* حماية */
+const session = JSON.parse(localStorage.getItem("session"));
+if(!session){
  location.href="index.html";
 }
 
-/* بيانات افتراضية (أول مرة فقط) */
-if(!localStorage.getItem("cars")){
- localStorage.setItem("cars", JSON.stringify([
-  {
-   name:"BMW X5",
-   price:"800£",
-   img:"https://i.imgur.com/0rZqG6K.jpg",
-   desc:"سيارة فاخرة وقوية",
-   cat:"BMW",
-   comments:[],
-   rates:[]
-  },
-  {
-   name:"Audi A6",
-   price:"750£",
-   img:"https://i.imgur.com/VG5zK0P.jpg",
-   desc:"راحة وأداء ممتاز",
-   cat:"Audi",
-   comments:[],
-   rates:[]
-  }
- ]));
-}
-
-const cars = JSON.parse(localStorage.getItem("cars"));
+/* عناصر */
 const list = document.getElementById("list");
 
-/* عرض السيارات */
-cars.forEach((car,i)=>{
+/* جلب السيارات */
+const { data:cars } = await supabase
+ .from("cars")
+ .select("*")
+ .order("created_at",{ascending:false});
+
+if(!cars || !cars.length){
+ list.innerHTML = "<p style='opacity:.6'>🚗 لا توجد سيارات</p>";
+}
+
+/* عرض */
+cars.forEach(car=>{
  list.innerHTML += `
-  <div class="card" onclick="openCar(${i})">
+  <div class="card" onclick="openCar(${car.id})">
    <img src="${car.img}">
    <div class="info">
     <h4>${car.name}</h4>
@@ -141,13 +136,12 @@ cars.forEach((car,i)=>{
 });
 
 /* فتح التفاصيل */
-function openCar(i){
- localStorage.setItem("currentCar", i);
- location.href = "car.html";
+window.openCar = function(id){
+ location.href = "car.html?id=" + id;
 }
 
-/* تسجيل خروج */
-function logout(){
+/* خروج */
+window.logout = function(){
  localStorage.removeItem("session");
  location.href="index.html";
 }
