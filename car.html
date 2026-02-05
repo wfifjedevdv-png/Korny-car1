@@ -13,22 +13,18 @@
  --glass:rgba(255,255,255,.1);
  --border:rgba(255,255,255,.2);
 }
-
 *{box-sizing:border-box;font-family:Segoe UI,Tahoma}
-
 body{
  margin:0;
  min-height:100vh;
  background:linear-gradient(180deg,var(--bg1),var(--bg2));
  color:white;
 }
-
 .container{
  max-width:900px;
  margin:auto;
  padding:20px;
 }
-
 .back{
  background:none;
  border:none;
@@ -37,7 +33,6 @@ body{
  font-size:16px;
  margin-bottom:14px;
 }
-
 .card{
  background:var(--glass);
  backdrop-filter:blur(14px);
@@ -45,26 +40,20 @@ body{
  padding:18px;
  border:1px solid var(--border);
 }
-
 .card img{
  width:100%;
  height:360px;
  object-fit:cover;
  border-radius:22px;
 }
-
 h2{margin:14px 0 6px}
-
 .price{
  color:var(--blue);
  font-size:22px;
  font-weight:bold;
  margin-bottom:10px;
 }
-
 .desc{opacity:.9;line-height:1.7}
-
-/* ⭐ STARS */
 .stars span{
  font-size:30px;
  cursor:pointer;
@@ -73,10 +62,7 @@ h2{margin:14px 0 6px}
 }
 .stars span.active,
 .stars span:hover{color:gold}
-
 .avg{margin-top:6px;color:#ccc}
-
-/* 💬 COMMENTS */
 .comment{
  background:rgba(255,255,255,.08);
  padding:12px;
@@ -84,9 +70,7 @@ h2{margin:14px 0 6px}
  margin-top:10px;
  border:1px solid var(--border);
 }
-
 .comment small{color:#aaa}
-
 input,textarea,button{
  width:100%;
  margin-top:12px;
@@ -96,15 +80,12 @@ input,textarea,button{
  background:#0f1420;
  color:white;
 }
-
 textarea{resize:none;height:90px}
-
 button.send{
  background:linear-gradient(135deg,#1e90ff,#3aa0ff);
  font-weight:600;
  cursor:pointer;
 }
-
 .empty{opacity:.6;text-align:center;margin-top:10px}
 </style>
 </head>
@@ -139,106 +120,130 @@ button.send{
 
 </div>
 
-<script>
-/* حماية الدخول */
-if(!localStorage.getItem("session")){
+<!-- SUPABASE -->
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+/* 🔑 بياناتك */
+const SUPABASE_URL = "https://fquwikhishikbysnzqfd.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5MYNJ7ek_LaarRhPDBNODg_Yz-4qthG";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* حماية */
+const session = JSON.parse(localStorage.getItem("session"));
+if(!session){
  location.href="index.html";
 }
 
-/* جلب البيانات */
-const cars = JSON.parse(localStorage.getItem("cars") || "[]");
-const i = localStorage.getItem("currentCar");
-
-/* تحقق */
-if(!cars.length || i === null || !cars[i]){
- document.body.innerHTML = `
-  <h2 style="text-align:center;margin-top:80px">
-   🚫 لا توجد سيارة محددة
-  </h2>
- `;
+/* جلب id من الرابط */
+const params = new URLSearchParams(location.search);
+const carId = params.get("id");
+if(!carId){
+ document.body.innerHTML="<h2 style='text-align:center;margin-top:80px'>🚫 سيارة غير موجودة</h2>";
  throw "";
 }
 
-const car = cars[i];
-car.comments ||= [];
-car.rates ||= [];
+/* عناصر */
+const card=document.getElementById("card");
+const img=document.getElementById("img");
+const name=document.getElementById("name");
+const price=document.getElementById("price");
+const desc=document.getElementById("desc");
+const stars=document.getElementById("stars");
+const avg=document.getElementById("avg");
+const commentsBox=document.getElementById("comments");
 
-/* عرض البيانات */
+/* تحميل السيارة */
+const { data:car } = await supabase
+ .from("cars")
+ .select("*")
+ .eq("id",carId)
+ .single();
+
+if(!car){
+ document.body.innerHTML="<h2 style='text-align:center;margin-top:80px'>🚫 السيارة غير موجودة</h2>";
+ throw "";
+}
+
 card.style.display="block";
-img.src = car.img;
-name.innerText = car.name;
-price.innerText = car.price;
-desc.innerText = car.desc;
+img.src=car.img;
+name.innerText=car.name;
+price.innerText=car.price;
+desc.innerText=car.desc;
 
-/* ⭐ النجوم */
-for(let x=1;x<=5;x++){
- stars.innerHTML += `<span onclick="rate(${x})">★</span>`;
-}
-updateStars();
+/* ⭐ التقييم */
+const { data:rates } = await supabase
+ .from("ratings")
+ .select("rate")
+ .eq("car_id",carId);
 
-function rate(n){
- car.rates.push(n);
- save();
- updateStars();
-}
-
-function updateStars(){
- let avgNum = car.rates.length
- ? (car.rates.reduce((a,b)=>a+b)/car.rates.length)
+let avgNum = rates?.length
+ ? rates.reduce((a,b)=>a+b.rate,0)/rates.length
  : 0;
 
- avg.innerText = car.rates.length
+avg.innerText = rates?.length
  ? `متوسط التقييم: ${avgNum.toFixed(1)} ⭐`
  : "لا يوجد تقييم بعد";
 
- [...stars.children].forEach((s,i)=>{
-  s.classList.toggle("active", i < Math.round(avgNum));
- });
+for(let i=1;i<=5;i++){
+ const s=document.createElement("span");
+ s.innerText="★";
+ if(i<=Math.round(avgNum)) s.classList.add("active");
+ s.onclick=async()=>{
+  await supabase.from("ratings").insert({
+   car_id:carId,
+   rate:i
+  });
+  location.reload();
+ };
+ stars.appendChild(s);
 }
 
 /* 💬 التعليقات */
-function renderComments(){
- comments.innerHTML="";
- if(!car.comments.length){
-  comments.innerHTML="<div class='empty'>لا توجد تعليقات</div>";
+async function renderComments(){
+ const { data:coms } = await supabase
+  .from("comments")
+  .select("*")
+  .eq("car_id",carId)
+  .order("created_at",{ascending:false});
+
+ commentsBox.innerHTML="";
+ if(!coms || !coms.length){
+  commentsBox.innerHTML="<div class='empty'>لا توجد تعليقات</div>";
   return;
  }
- car.comments.forEach(c=>{
-  comments.innerHTML+=`
+
+ coms.forEach(c=>{
+  commentsBox.innerHTML+=`
    <div class="comment">
     <b>${c.name}</b>
-    <small> • ${c.time}</small>
+    <small> • ${new Date(c.created_at).toLocaleString("ar")}</small>
     <p>${c.text}</p>
    </div>`;
  });
 }
 
-function addComment(){
+/* إضافة تعليق */
+window.addComment = async function(){
  if(!cname.value.trim() || !ctext.value.trim()){
   alert("املأ جميع الحقول");
   return;
  }
- car.comments.push({
+ await supabase.from("comments").insert({
+  car_id:carId,
   name:cname.value,
-  text:ctext.value,
-  time:new Date().toLocaleString()
+  text:ctext.value
  });
  cname.value="";
  ctext.value="";
- save();
  renderComments();
-}
-
-function save(){
- localStorage.setItem("cars",JSON.stringify(cars));
 }
 
 renderComments();
 
 /* رجوع */
 function goBack(){
- localStorage.removeItem("currentCar");
- location.href="gallery.html";
+ location.href="index.html";
 }
 </script>
 
