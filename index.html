@@ -12,15 +12,12 @@ body{
   color:white;
   font-family:Segoe UI,Tahoma;
 }
-
-/* LOGIN */
 #login{
  display:flex;
  justify-content:center;
  align-items:center;
  height:100vh;
 }
-
 .login-box{
  background:rgba(255,255,255,.08);
  padding:32px;
@@ -28,12 +25,6 @@ body{
  border-radius:24px;
  text-align:center;
 }
-
-.login-box.admin{
- border:1px solid rgba(58,160,255,.35);
- box-shadow:0 0 35px rgba(58,160,255,.25);
-}
-
 input{
  width:100%;
  padding:13px 14px;
@@ -44,7 +35,6 @@ input{
  color:white;
  font-size:15px;
 }
-
 button{
  width:100%;
  padding:13px;
@@ -56,21 +46,17 @@ button{
  font-size:16px;
  cursor:pointer;
 }
-
 .link{
  margin-top:14px;
  color:#3aa0ff;
  cursor:pointer;
  font-size:14px;
 }
-
 #error{
  color:#ff6b6b;
  margin-top:12px;
  display:none;
 }
-
-/* NAV */
 nav{
  display:none;
  justify-content:space-between;
@@ -78,15 +64,12 @@ nav{
  padding:15px 20px;
  background:#020617;
 }
-
-/* CONTENT */
 #content{
  display:none;
  padding:20px;
  max-width:1200px;
  margin:auto;
 }
-
 .search{
  margin-bottom:20px;
  width:100%;
@@ -96,29 +79,22 @@ nav{
  background:#111827;
  color:white;
 }
-
 .cars{
  display:grid;
  grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
  gap:20px;
 }
-
 .car{
  background:rgba(255,255,255,.08);
  border-radius:20px;
  overflow:hidden;
- cursor:pointer;
  transition:.3s;
 }
-
-.car:hover{ transform:translateY(-5px); }
-
 .car img{
  width:100%;
  height:180px;
  object-fit:cover;
 }
-
 .car .info{ padding:15px; }
 .price{ color:#3aa0ff; font-weight:bold; }
 </style>
@@ -128,7 +104,7 @@ nav{
 
 <!-- LOGIN -->
 <div id="login">
- <div class="login-box" id="loginBox">
+ <div class="login-box">
   <h2 id="formTitle">🔐 تسجيل الدخول</h2>
 
   <input id="name" placeholder="اسمك" style="display:none">
@@ -136,7 +112,6 @@ nav{
   <input id="password" type="password" placeholder="كلمة المرور">
 
   <button onclick="submitForm()">دخول</button>
-
   <div class="link" onclick="toggleForm()">إنشاء حساب جديد</div>
   <div id="error"></div>
  </div>
@@ -154,10 +129,15 @@ nav{
  <div class="cars" id="cars"></div>
 </div>
 
-<script>
-/* أدمن */
-const ADMIN_USER = "mouhamed";
-const ADMIN_PASS = "Lm2007tt";
+<!-- SUPABASE -->
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+/* 🔑 ضع بيانات Supabase هنا */
+const SUPABASE_URL"https://fquwikhishikbysnzqfd.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5MYNJ7ek_LaarRhPDBNODg_Yz-4qthG";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* عناصر */
 const loginBox = document.getElementById("login");
@@ -172,19 +152,16 @@ const formTitle = document.getElementById("formTitle");
 
 let isRegister = false;
 
-/* مستخدمين */
-let users = JSON.parse(localStorage.getItem("users") || "[]");
-
 /* تبديل */
-function toggleForm(){
+window.toggleForm = function(){
  isRegister = !isRegister;
  formTitle.innerText = isRegister ? "🆕 إنشاء حساب" : "🔐 تسجيل الدخول";
  nameInput.style.display = isRegister ? "block" : "none";
- error.style.display="none";
+ error.style.display = "none";
 }
 
-/* إرسال */
-function submitForm(){
+/* دخول / تسجيل */
+window.submitForm = async function(){
  const email = emailInput.value.trim();
  const pass = passInput.value.trim();
  const name = nameInput.value.trim();
@@ -194,23 +171,22 @@ function submitForm(){
   return;
  }
 
- /* أدمن */
- if(!isRegister && email===ADMIN_USER && pass===ADMIN_PASS){
-  localStorage.setItem("session", JSON.stringify({role:"admin"}));
-  location.href="admin.html";
-  return;
- }
-
  if(isRegister){
-  if(users.find(u=>u.email===email)){
-   showError("الإيميل مستخدم");
-   return;
-  }
-  users.push({name,email,password:pass,role:"user"});
-  localStorage.setItem("users",JSON.stringify(users));
+  await supabase.from("users").insert({
+   name,
+   email,
+   password: pass,
+   role: "user"
+  });
  }
 
- const user = users.find(u=>u.email===email && u.password===pass);
+ const { data:user } = await supabase
+  .from("users")
+  .select("*")
+  .eq("email", email)
+  .eq("password", pass)
+  .single();
+
  if(!user){
   showError("بيانات غير صحيحة");
   return;
@@ -232,55 +208,47 @@ function start(){
 }
 
 /* خروج */
-function logout(){
+window.logout = function(){
  localStorage.removeItem("session");
  location.reload();
 }
 
-/* ✅ عرض السيارات (الحل النهائي) */
-function renderCars(){
+/* عرض السيارات */
+window.renderCars = async function(){
  const q = document.getElementById("search").value.toLowerCase();
  const box = document.getElementById("cars");
-
- // إعادة قراءة السيارات دائمًا
- const cars = JSON.parse(localStorage.getItem("cars") || "[]");
-
  box.innerHTML="";
 
- if(!cars.length){
-  box.innerHTML="<p style='opacity:.6'>🚗 لا توجد سيارات بعد</p>";
+ const { data:cars } = await supabase.from("cars").select("*");
+
+ if(!cars || cars.length === 0){
+  box.innerHTML="<p style='opacity:.6'>🚗 لا توجد سيارات</p>";
   return;
  }
 
  cars
- .filter(c=>c.name.toLowerCase().includes(q))
- .forEach((c,i)=>{
-  box.innerHTML+=`
-   <div class="car" onclick="openCar(${i})">
-    <img src="${c.img}">
-    <div class="info">
-     <h4>${c.name}</h4>
-     <p>${c.desc || ""}</p>
-     <div class="price">${c.price}</div>
+  .filter(c => c.name.toLowerCase().includes(q))
+  .forEach(c => {
+   box.innerHTML += `
+    <div class="car">
+     <img src="${c.img}">
+     <div class="info">
+      <h4>${c.name}</h4>
+      <p>${c.desc || ""}</p>
+      <div class="price">${c.price}</div>
+     </div>
     </div>
-   </div>`;
- });
+   `;
+  });
 }
 
-/* فتح سيارة */
-function openCar(i){
- localStorage.setItem("currentCar",i);
- location.href="car.html";
+function showError(msg){
+ error.innerText = msg;
+ error.style.display = "block";
 }
 
-function showError(t){
- error.innerText=t;
- error.style.display="block";
-}
-
-/* تشغيل */
 start();
 </script>
 
 </body>
-</html>
+  </html>
