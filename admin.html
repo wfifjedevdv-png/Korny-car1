@@ -112,19 +112,18 @@ nav button{
 
 </div>
 
-<!-- تفاصيل المستخدم -->
+<!-- معلومات المستخدم -->
 <div class="modal" id="infoModal">
  <div class="modal-box">
   <h3>📄 معلومات المستخدم</h3>
   <p><b>الاسم:</b> <span id="mName"></span></p>
   <p><b>الإيميل:</b> <span id="mEmail"></span></p>
-  <p><b>كلمة المرور:</b> <span id="mPass"></span></p>
   <p><b>الدور:</b> <span id="mRole"></span></p>
   <button class="btn-cancel" onclick="closeInfo()">إغلاق</button>
  </div>
 </div>
 
-<!-- تأكيد الحذف -->
+<!-- حذف -->
 <div class="modal" id="deleteModal">
  <div class="modal-box">
   <h3>⚠️ تأكيد الحذف</h3>
@@ -134,10 +133,19 @@ nav button{
  </div>
 </div>
 
-<script>
+<!-- SUPABASE -->
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+/* 🔑 بياناتك */
+const SUPABASE_URL = "https://fquwikhishikbysnzqfd.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5MYNJ7ek_LaarRhPDBNODg_Yz-4qthG";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 /* حماية */
-const session=JSON.parse(localStorage.getItem("session"));
-if(!session||session.role!=="admin")location.href="index.html";
+const session = JSON.parse(localStorage.getItem("session"));
+if(!session || !session.role.startsWith("admin"))
+ location.href="index.html";
 
 /* ثيم */
 function toggleTheme(){
@@ -148,90 +156,90 @@ function toggleTheme(){
 if(localStorage.getItem("theme")==="light")
  document.body.classList.add("light");
 
-/* بيانات */
-let users=JSON.parse(localStorage.getItem("users")||"[]");
-let logs=JSON.parse(localStorage.getItem("logs")||"[]");
-let deleteIndex=null;
-
+/* عناصر */
 const box=document.getElementById("users");
 const logBox=document.getElementById("logs");
+let deleteId=null;
 
 /* سجل */
-function addLog(text){
- logs.unshift({text,time:new Date().toLocaleString("ar")});
- localStorage.setItem("logs",JSON.stringify(logs));
+async function addLog(text){
+ await supabase.from("logs").insert({text});
  renderLogs();
 }
 
 /* عرض المستخدمين */
-function renderUsers(){
+async function renderUsers(){
+ const { data:users } = await supabase.from("users").select("*");
  box.innerHTML="";
- users.forEach((u,i)=>{
+ users.forEach(u=>{
   box.innerHTML+=`
    <div class="card">
     <div>
-     <div class="email" onclick="showInfo(${i})">${u.email}</div>
+     <div class="email" onclick="showInfo(${u.id})">${u.email}</div>
      <div class="role">${u.role}</div>
     </div>
     ${
-     u.role==="admin"
+     u.role.startsWith("admin")
      ? `<span class="badge">👑 أدمن</span>`
-     : `<button class="delete-btn" onclick="askDelete(${i})">🗑</button>`
+     : `<button class="delete-btn" onclick="askDelete(${u.id},'${u.email}')">🗑</button>`
     }
    </div>`;
  });
 }
 
-/* عرض السجل */
-function renderLogs(){
+/* السجل */
+async function renderLogs(){
+ const { data } = await supabase
+  .from("logs")
+  .select("*")
+  .order("created_at",{ascending:false});
+
  logBox.innerHTML="";
- if(!logs.length){
-  logBox.innerHTML="<p>لا يوجد نشاطات</p>";return;
+ if(!data.length){
+  logBox.innerHTML="<p>لا يوجد نشاطات</p>";
+  return;
  }
- logs.forEach(l=>{
+ data.forEach(l=>{
   logBox.innerHTML+=`
    <div class="log">${l.text}
-    <div class="time">${l.time}</div>
+    <div class="time">${new Date(l.created_at).toLocaleString("ar")}</div>
    </div>`;
  });
 }
 
 /* معلومات */
-function showInfo(i){
- const u=users[i];
- mName.innerText=u.name||"-";
+async function showInfo(id){
+ const { data:u } = await supabase.from("users").select("*").eq("id",id).single();
+ mName.innerText=u.name;
  mEmail.innerText=u.email;
- mPass.innerText=u.password;
  mRole.innerText=u.role;
  infoModal.style.display="flex";
 }
 function closeInfo(){infoModal.style.display="none";}
 
 /* حذف */
-function askDelete(i){
- deleteIndex=i;
- deleteText.innerText=`هل تريد حذف المستخدم ${users[i].email}؟`;
+function askDelete(id,email){
+ deleteId=id;
+ deleteText.innerText=`هل تريد حذف المستخدم ${email}؟`;
  deleteModal.style.display="flex";
 }
 function closeDelete(){
  deleteModal.style.display="none";
- deleteIndex=null;
+ deleteId=null;
 }
-function confirmDelete(){
- addLog(`🗑 حذف المستخدم ${users[deleteIndex].email}`);
- users.splice(deleteIndex,1);
- localStorage.setItem("users",JSON.stringify(users));
+async function confirmDelete(){
+ await supabase.from("users").delete().eq("id",deleteId);
+ addLog("🗑 حذف مستخدم");
  closeDelete();
  renderUsers();
 }
 
 /* تنقل */
 function goCars(){
- addLog("🚗 الدخول إلى إدارة السيارات");
+ addLog("🚗 الدخول لإدارة السيارات");
  location.href="admin-cars.html";
 }
 function logout(){
- addLog("🚪 تسجيل خروج الأدمن");
  localStorage.removeItem("session");
  location.href="index.html";
 }
